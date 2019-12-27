@@ -1,6 +1,10 @@
 import math
 import torch.nn as nn
 from torch.utils import model_zoo
+import matplotlib.pyplot as plt
+import numpy as np
+
+import pdb
 
 model_urls = {
     'bagnet9':
@@ -39,7 +43,26 @@ class Bottleneck(nn.Module):
         self.downsample = downsample
         self.stride = stride
 
+
+      # (conv1): Conv2d(64, 64, kernel_size=(1, 1), stride=(1, 1), bias=False)
+      # (bn1): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+      # (conv2): Conv2d(64, 64, kernel_size=(3, 3), stride=(2, 2), bias=False)
+      # (bn2): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+      # (conv3): Conv2d(64, 256, kernel_size=(1, 1), stride=(1, 1), bias=False)
+      # (bn3): BatchNorm2d(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+      # (relu): ReLU(inplace=True)
+      # (downsample): Sequential(
+      #   (0): Conv2d(64, 256, kernel_size=(1, 1), stride=(2, 2), bias=False)
+      #   (1): BatchNorm2d(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+      # )
+
+
+
     def forward(self, x, **kwargs):
+        # pdb.set_trace()
+        # (Pdb) pp x.size()
+        # torch.Size([1, 64, 62, 62])
+
         residual = x
 
         out = self.conv1(x)
@@ -62,6 +85,8 @@ class Bottleneck(nn.Module):
 
         out += residual
         out = self.relu(out)
+        # pdb.set_trace()
+        # torch.Size([1, 256, 30, 30])
 
         return out
 
@@ -123,6 +148,12 @@ class BagNet(nn.Module):
             if isinstance(m, nn.Conv2d):
                 n = m.kernel_size[0] * m.kernel_size[1] * m.out_channels
                 m.weight.data.normal_(0, math.sqrt(2. / n))
+                # pdb.set_trace()
+                # (Pdb) pp m.weight.std()
+                # tensor(0.1823, grad_fn=<StdBackward0>)
+                # (Pdb) pp math.sqrt(2. / n)
+                # 0.1767766952966369
+
             elif isinstance(m, nn.BatchNorm2d):
                 m.weight.data.fill_(1)
                 m.bias.data.zero_()
@@ -144,6 +175,27 @@ class BagNet(nn.Module):
                           bias=False),
                 nn.BatchNorm2d(planes * block.expansion),
             )
+        # (conv1): Conv2d(64, 64, kernel_size=(1, 1), stride=(1, 1), bias=False)
+        # (bn1): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        # (conv2): Conv2d(64, 64, kernel_size=(3, 3), stride=(2, 2), bias=False)
+        # (bn2): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        # (conv3): Conv2d(64, 256, kernel_size=(1, 1), stride=(1, 1), bias=False)
+        # (bn3): BatchNorm2d(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        # (relu): ReLU(inplace=True)
+        # (downsample): Sequential(
+        #   (0): Conv2d(64, 256, kernel_size=(1, 1), stride=(2, 2), bias=False)
+        #   (1): BatchNorm2d(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        # )
+
+        # (1): Bottleneck(
+        #   (conv1): Conv2d(256, 64, kernel_size=(1, 1), stride=(1, 1), bias=False)
+        #   (bn1): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        #   (conv2): Conv2d(64, 64, kernel_size=(1, 1), stride=(1, 1), bias=False)
+        #   (bn2): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        #   (conv3): Conv2d(64, 256, kernel_size=(1, 1), stride=(1, 1), bias=False)
+        #   (bn3): BatchNorm2d(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+        #   (relu): ReLU(inplace=True)
+        # )
 
         layers = []
         kernel = 1 if kernel3 == 0 else 3
@@ -162,25 +214,41 @@ class BagNet(nn.Module):
 
     def forward(self, x):
         # Wouldn't it be great if we had pipes?
+        # print("xxxx --- x.size()=", x.size())
+        # pdb.set_trace()
+        # xxxx --- x.size()= torch.Size([64, 3, 28, 28])
+
         x = self.conv1(x)
         x = self.conv2(x)
         x = self.bn1(x)
         x = self.relu(x)
-
+        # x.size() = torch.Size([64, 64, 26, 26])
         x = self.layer1(x)
+        # x.size() = torch.Size([64, 64, 12, 12])
         x = self.layer2(x)
+        # x.size() = torch.Size([64, 64, 5, 5])
         x = self.layer3(x)
+        # x.size() = torch.Size([64, 64, 2, 2])
         x = self.layer4(x)
+        # x.size() = torch.Size([64, 64, 2, 2])
 
-        print("pre pool", x.shape)
+        # print("pre pool", x.shape)
+        # yyyy --- x.size()= torch.Size([64, 2048, 3, 3])
+        # yyyy --- x.size()= torch.Size([64, 2048, 2, 2])
+
         if self.avg_pool:
             x = nn.AvgPool2d(x.size()[2], stride=1)(x)
-            print("post pool", x.shape)
+            # print("post pool", x.shape)
+            # post pool torch.Size([64, 2048, 1, 1])
+
             x = x.view(x.size(0), -1)
             x = self.fc(x)
         else:
             x = x.permute(0, 2, 3, 1)
             x = self.fc(x)
+
+        # pdb.set_trace()
+        # (fc): Linear(in_features=2048, out_features=1000, bias=True)
 
         return x
 
@@ -230,6 +298,34 @@ def create_bagnet9(pretrained=False, strides=[2, 2, 2, 1], **kwargs):
     return model
 
 
+def generate_heatmap(model, image, target, patchsize):
+    with torch.no_grad():
+        # pad with zeros
+        _, c, x, y = image.shape
+        padded_image = np.zeros((c, x + patchsize - 1, y + patchsize - 1))
+        padded_image[:, (patchsize - 1) // 2:(patchsize - 1) // 2 +
+                     x, (patchsize - 1) // 2:(patchsize - 1) // 2 +
+                     y] = image[0]
+        image = padded_image[None].astype(np.float32)
+
+        # extract patches
+        input = torch.from_numpy(image).cuda()
+        patches = input.permute(0, 2, 3, 1)
+        patches = patches.unfold(1, patchsize, 1).unfold(2, patchsize, 1)
+        num_rows = patches.shape[1]
+        num_cols = patches.shape[2]
+        patches = patches.contiguous().view((-1, 3, patchsize, patchsize))
+
+        # compute logits for each patch
+        logits_list = []
+        for batch_patches in torch.split(patches, 1000):
+            logits = model(batch_patches)
+            logits = logits[:, target]
+            logits_list.append(logits.data.cpu().numpy().copy())
+
+        logits = np.hstack(logits_list)
+        return logits.reshape((28, 28))
+
 if __name__ == '__main__':
     import torch
     from fastai.datasets import URLs, untar_data
@@ -240,17 +336,50 @@ if __name__ == '__main__':
     path = untar_data(URLs.MNIST_SAMPLE)
     mnist = ImageDataBunch.from_folder(path)
 
+    # pdb.set_trace()
+    # PosixPath('/home/dell/.fastai/data/mnist_sample')
+
     # bagnet = create_bagnet9(num_classes=len(mnist.classes))
-    bagnet = create_bagnet9(pretrained=True)
+    bagnet = create_bagnet9(num_classes=len(mnist.classes)).cuda()
+    print(bagnet)
+
+    bagnet.load_state_dict(torch.load("bagnet.pth"))
+
+    # learner = cnn_learner(
+    #     data=mnist,
+    #     # mmkay I definitely wouldn't've guessed this
+    #     base_arch=lambda _: bagnet,
+    #     metrics=accuracy
+    # )
+    # learner.fit_one_cycle(cyc_len=10, max_lr=1e-2)
+
+    # torch.save(bagnet.state_dict(), "bagnet.pth")
+
+    images, labels = mnist.one_batch()
+    i = 1
+    img = images[i].cpu().numpy()
+    plt.imshow(np.rollaxis(img, 0, 3))
+    plt.show()
+
+    heatmap = generate_heatmap(bagnet, img[None], labels[i].cpu().numpy().item(), 9)
+    plt.imshow(heatmap, cmap=plt.cm.Blues)
+    plt.colorbar()
+    plt.show()
 
 
-    bagnet = bagnet.cuda()
-    learner = cnn_learner(
-        data=mnist,
-        # mmkay I definitely wouldn't've guessed this
-        base_arch=lambda _: bagnet,
-        metrics=accuracy
-    )
-    # model = create_bagnet9(pretrained=True)
-    # print(model)
-    learner.fit_one_cycle(cyc_len=20, max_lr=1e-2)
+
+
+    # x = torch.rand(64, 3, 28, 28)
+    # bagnet(x)
+
+    # bagnet = bagnet.cuda()
+
+    # learner = cnn_learner(
+    #     data=mnist,
+    #     # mmkay I definitely wouldn't've guessed this
+    #     base_arch=lambda _: bagnet,
+    #     metrics=accuracy
+    # )
+    # # model = create_bagnet9(pretrained=True)
+    # # print(model)
+    # learner.fit_one_cycle(cyc_len=2, max_lr=1e-2)
