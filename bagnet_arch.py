@@ -3,8 +3,8 @@ import torch.nn as nn
 from torch.utils import model_zoo
 import matplotlib.pyplot as plt
 import numpy as np
-
 import pdb
+
 
 model_urls = {
     'bagnet9':
@@ -26,7 +26,6 @@ class Bottleneck(nn.Module):
                  downsample=None,
                  kernel_size=1):
         super(Bottleneck, self).__init__()
-        # print('Creating bottleneck with kernel size {} and stride {} with padding {}'.format(kernel_size, stride, (kernel_size - 1) // 2))
         self.conv1 = nn.Conv2d(inplanes, planes, kernel_size=1, bias=False)
         self.bn1 = nn.BatchNorm2d(planes)
         self.conv2 = nn.Conv2d(
@@ -43,20 +42,17 @@ class Bottleneck(nn.Module):
         self.downsample = downsample
         self.stride = stride
 
-
-      # (conv1): Conv2d(64, 64, kernel_size=(1, 1), stride=(1, 1), bias=False)
-      # (bn1): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-      # (conv2): Conv2d(64, 64, kernel_size=(3, 3), stride=(2, 2), bias=False)
-      # (bn2): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-      # (conv3): Conv2d(64, 256, kernel_size=(1, 1), stride=(1, 1), bias=False)
-      # (bn3): BatchNorm2d(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-      # (relu): ReLU(inplace=True)
-      # (downsample): Sequential(
-      #   (0): Conv2d(64, 256, kernel_size=(1, 1), stride=(2, 2), bias=False)
-      #   (1): BatchNorm2d(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
-      # )
-
-
+    # (conv1): Conv2d(64, 64, kernel_size=(1, 1), stride=(1, 1), bias=False)
+    # (bn1): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+    # (conv2): Conv2d(64, 64, kernel_size=(3, 3), stride=(2, 2), bias=False)
+    # (bn2): BatchNorm2d(64, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+    # (conv3): Conv2d(64, 256, kernel_size=(1, 1), stride=(1, 1), bias=False)
+    # (bn3): BatchNorm2d(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+    # (relu): ReLU(inplace=True)
+    # (downsample): Sequential(
+    #   (0): Conv2d(64, 256, kernel_size=(1, 1), stride=(2, 2), bias=False)
+    #   (1): BatchNorm2d(256, eps=1e-05, momentum=0.1, affine=True, track_running_stats=True)
+    # )
 
     def forward(self, x, **kwargs):
         # pdb.set_trace()
@@ -312,8 +308,8 @@ def generate_heatmap(model, image, target, patchsize):
         input = torch.from_numpy(image).cuda()
         patches = input.permute(0, 2, 3, 1)
         patches = patches.unfold(1, patchsize, 1).unfold(2, patchsize, 1)
-        num_rows = patches.shape[1]
-        num_cols = patches.shape[2]
+        # num_rows = patches.shape[1]
+        # num_cols = patches.shape[2]
         patches = patches.contiguous().view((-1, 3, patchsize, patchsize))
 
         # compute logits for each patch
@@ -326,11 +322,11 @@ def generate_heatmap(model, image, target, patchsize):
         logits = np.hstack(logits_list)
         return logits.reshape((28, 28))
 
+
 if __name__ == '__main__':
     import torch
     from fastai.datasets import URLs, untar_data
     from fastai.vision import ImageDataBunch, cnn_learner
-    # from fastai.vision import create_cnn
     from fastai.metrics import accuracy
 
     path = untar_data(URLs.MNIST_SAMPLE)
@@ -361,25 +357,8 @@ if __name__ == '__main__':
     plt.imshow(np.rollaxis(img, 0, 3))
     plt.show()
 
-    heatmap = generate_heatmap(bagnet, img[None], labels[i].cpu().numpy().item(), 9)
+    heatmap = generate_heatmap(bagnet, img[None],
+                               labels[i].cpu().numpy().item(), 9)
     plt.imshow(heatmap, cmap=plt.cm.Blues)
     plt.colorbar()
     plt.show()
-
-
-
-
-    # x = torch.rand(64, 3, 28, 28)
-    # bagnet(x)
-
-    # bagnet = bagnet.cuda()
-
-    # learner = cnn_learner(
-    #     data=mnist,
-    #     # mmkay I definitely wouldn't've guessed this
-    #     base_arch=lambda _: bagnet,
-    #     metrics=accuracy
-    # )
-    # # model = create_bagnet9(pretrained=True)
-    # # print(model)
-    # learner.fit_one_cycle(cyc_len=2, max_lr=1e-2)
